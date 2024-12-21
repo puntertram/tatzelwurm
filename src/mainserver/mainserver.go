@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	persistent_hashmap "tatzelwurm/utils"
 	"time"
 
@@ -47,14 +48,40 @@ func processGetChunkId(w http.ResponseWriter, r *http.Request) {
 		chunk_id, chunk_id_found := file_name_to_chunk_id_map.Get(fmt.Sprintf("%s, %s", file_name, chunk_offset))
 		fmt.Printf("The file_name is %s, and the chunk_offset is %s\n", file_name, chunk_offset)
 		if chunk_id_found {
+			w.WriteHeader(http.StatusConflict)
 			response = map[string]string{
 				"description": "chunk_id found successfully",
 				"chunk_id":    chunk_id,
 			}
 		} else {
+			w.WriteHeader(http.StatusNotFound)
 			response = map[string]string{
 				"description": "chunk_id not found in store!",
-				"chunk_id":    "",
+				"chunk_id":    chunk_id,
+			}
+		}
+	} else if r.Method == http.MethodPost {
+		var request_body_json map[string]string
+		json.NewDecoder(r.Body).Decode(&request_body_json)
+		file_name := request_body_json["file_name"]
+		chunk_offset, _ := strconv.Atoi(request_body_json["chunk_offset"])
+		println("filename: ", file_name)
+		println("chunk_offset: ", chunk_offset)
+		chunk_id, chunk_id_found := file_name_to_chunk_id_map.Get(fmt.Sprintf("%s, %d", file_name, chunk_offset))
+		fmt.Printf("The file_name is %s, and the chunk_offset is %d\n", file_name, chunk_offset)
+		if chunk_id_found {
+			w.WriteHeader(http.StatusConflict)
+			response = map[string]string{
+				"description": "chunk_id already exists!",
+				"chunk_id":    chunk_id,
+			}
+		} else {
+
+			chunk_id := uuid.New().String()
+			file_name_to_chunk_id_map.Put(fmt.Sprintf("%s, %d", file_name, chunk_offset), chunk_id)
+			response = map[string]string{
+				"description": "chunk_id not found in store! Returning a fresh one...",
+				"chunk_id":    chunk_id,
 			}
 		}
 	} else {
@@ -97,7 +124,10 @@ func processGetChunkServers(w http.ResponseWriter, r *http.Request) {
 		for _, chunk_id_to_chunk_server_map := range chunk_id_to_chunk_server_maps {
 			chunkserver_session_id, ok := chunk_id_to_chunk_server_map.Get(chunk_id)
 			if ok {
-				chunkserver_ipv4_address, _ := chunk_server_map.Get(chunkserver_session_id)
+				chunkserver_map_value, _ := chunk_server_map.Get(chunkserver_session_id)
+				chunkserver_map_values := strings.Split(chunkserver_map_value, ",")
+				chunkserver_ipv4_address := chunkserver_map_values[0]
+				// chunkserver_is_replicated := chunkserver_map_values[1]
 				chunk_servers = append(chunk_servers, GetChunkServerModel{
 					session_id:   chunkserver_session_id,
 					Ipv4_address: chunkserver_ipv4_address,
@@ -130,7 +160,7 @@ func processGetChunkServers(w http.ResponseWriter, r *http.Request) {
 				// We are sure to find chunk_server_key in chunk_server_map
 				chunk_server_ipv4_address, _ := chunk_server_map.Get(chunk_server_key)
 				map_name := fmt.Sprintf("persistent_hashmap_%d", idx)
-				chunk_id_to_chunk_server_maps[map_name].Put(chunk_id, chunk_server_key)
+				chunk_id_to_chunk_server_maps[map_name].Put(chunk_id, fmt.Sprintf("%s, %v", chunk_server_key, false))
 				chunk_servers = append(chunk_servers, GetChunkServerModel{
 					session_id:   chunk_server_key,
 					Ipv4_address: chunk_server_ipv4_address,

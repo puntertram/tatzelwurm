@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	persistent_hashmap "tatzelwurm/utils"
 )
 
@@ -115,6 +116,7 @@ func processWriteChunk(w http.ResponseWriter, r *http.Request) {
 		chunk_id := request_body_json["chunk_id"]
 		chunk_stream := request_body_json["stream"]
 		chunk_file_path := fmt.Sprintf("%s/%s", chunkServerConfigFileJson.DATA_DIRECTORY, chunk_id)
+		println("The chunk_file_path is ", chunk_file_path)
 		err := os.WriteFile(chunk_file_path, []byte(chunk_stream), 0644)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -124,7 +126,7 @@ func processWriteChunk(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			response = WriteChunkResponseModel{
-				"Description": fmt.Sprintf("%s contents successfully written", chunk_id)
+				Description: fmt.Sprintf("%s contents successfully written", chunk_id),
 			}
 		}
 	} else {
@@ -155,4 +157,8 @@ func Run(chunkserver_config_file_path string) {
 	http.HandleFunc("/get_chunk", processGetChunk)
 	http.HandleFunc("/write_chunk", processWriteChunk)
 
+	var portNumber = chunkServerConfigFileJson.PORT
+	if err := http.ListenAndServe("localhost:"+strconv.Itoa(portNumber), nil); err != nil {
+		fmt.Println("Could not start http server on port ", portNumber, err)
+	}
 }
