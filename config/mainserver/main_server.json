@@ -1,5 +1,5 @@
 {
-    "PERSISTENT_HASHMAP_WAL_DIRECTORY" : "/Users/puneeth/Documents/software/side-projects/gfs-clone/mainserver",
+    "PERSISTENT_HASHMAP_WAL_DIRECTORY" : "/Users/puneeth/Documents/software/side-projects/gfs-clone/mainserver_meta",
     "REPLICATION_FACTOR": 3,
     "PORT": 8000,
     "GFS_CHUNK_SIZE": 1000000
