@@ -169,7 +169,9 @@ func processHeartBeat(w http.ResponseWriter, r *http.Request) {
 			// this chunk server is not registered with the mainserver
 			chunk_server_session_id := uuid.New().String()
 			chunk_server_map.Put(chunk_server_session_id, request_body.IP_ADDRESS)
-
+			response = map[string]string{
+				"description": fmt.Sprintf("[heartbeat_request] This chunkserver is successfully registered with the mainserver with session id %s", chunk_server_session_id),
+			}
 		} else {
 			response = map[string]string{
 				"description": fmt.Sprintf("[heartbeat_request] This chunkserver is already registered with the mainserver with session id %s", chunk_server_session_id),
