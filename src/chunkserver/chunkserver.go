@@ -24,6 +24,7 @@ type ChunkServerPersistentHashmap struct {
 }
 
 var chunkServerConfigFileJson CHUNK_SERVER_CONFIG
+var chunk_server_to_chunk_id_map *ChunkServerPersistentHashmap = nil
 
 func connect(chunkServerConfigFileJson CHUNK_SERVER_CONFIG) error {
 	var error error
@@ -125,6 +126,7 @@ func processWriteChunk(w http.ResponseWriter, r *http.Request) {
 				Description: "Error Writing stream to file",
 			}
 		} else {
+			// chunk_server_to_chunk_id_map.Put(chunk_id, fmt.Sprintf("%v", true))
 			response = WriteChunkResponseModel{
 				Description: fmt.Sprintf("%s contents successfully written", chunk_id),
 			}
@@ -152,6 +154,7 @@ func Run(chunkserver_config_file_path string) {
 	if err != nil {
 		print("Could not connect to the mainserver")
 	}
+
 	http.HandleFunc("/", processBase)
 	http.HandleFunc("/heartbeat", processHeartBeat)
 	http.HandleFunc("/get_chunk", processGetChunk)

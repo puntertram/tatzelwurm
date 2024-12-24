@@ -15,8 +15,6 @@ chunkserver_config = json.load(open(CHUNKSERVER_CONFIG_FILE_PATH))
 def connect():
     # get the chunk size
     # setup a connection with the master server
-    hostname = socket.gethostname()
-    # print(hostname)
     local_ip = f"http://localhost:{chunkserver_config['chunk_server_info']['port']}"
     # local_ip = socket.gethostbyname(hostname)
     heartbeat_request = requests.post(urljoin(chunkserver_config["gfs_server_info"]["ipv4_address"], "heartbeat"), json={"ip_address": local_ip})

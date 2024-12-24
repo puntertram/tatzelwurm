@@ -109,7 +109,7 @@ func getRandomKeys(m *MainServerPersistentHashmap, n int) ([]string, string) {
 
 func processGetChunkServers(w http.ResponseWriter, r *http.Request) {
 	type GetChunkServerModel struct {
-		session_id   string
+		Session_id   string `json:"session_id"`
 		Ipv4_address string `json:"ipv4_address"`
 	}
 	type GetChunkServersResponse struct {
@@ -122,14 +122,15 @@ func processGetChunkServers(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("The chunk_id is %s\n", chunk_id)
 		chunk_servers := make([]GetChunkServerModel, 0)
 		for _, chunk_id_to_chunk_server_map := range chunk_id_to_chunk_server_maps {
-			chunkserver_session_id, ok := chunk_id_to_chunk_server_map.Get(chunk_id)
+			chunk_id_to_chunk_server_map_value, ok := chunk_id_to_chunk_server_map.Get(chunk_id)
+			chunk_id_to_chunk_server_map_values := strings.Split(chunk_id_to_chunk_server_map_value, ",")
+			chunkserver_session_id := chunk_id_to_chunk_server_map_values[0]
+			// chunkid_is_replicated := chunk_id_to_chunk_server_map_values[1]
 			if ok {
-				chunkserver_map_value, _ := chunk_server_map.Get(chunkserver_session_id)
-				chunkserver_map_values := strings.Split(chunkserver_map_value, ",")
-				chunkserver_ipv4_address := chunkserver_map_values[0]
+				chunkserver_ipv4_address, _ := chunk_server_map.Get(chunkserver_session_id)
 				// chunkserver_is_replicated := chunkserver_map_values[1]
 				chunk_servers = append(chunk_servers, GetChunkServerModel{
-					session_id:   chunkserver_session_id,
+					Session_id:   chunkserver_session_id,
 					Ipv4_address: chunkserver_ipv4_address,
 				})
 			}
@@ -162,7 +163,7 @@ func processGetChunkServers(w http.ResponseWriter, r *http.Request) {
 				map_name := fmt.Sprintf("persistent_hashmap_%d", idx)
 				chunk_id_to_chunk_server_maps[map_name].Put(chunk_id, fmt.Sprintf("%s, %v", chunk_server_key, false))
 				chunk_servers = append(chunk_servers, GetChunkServerModel{
-					session_id:   chunk_server_key,
+					Session_id:   chunk_server_key,
 					Ipv4_address: chunk_server_ipv4_address,
 				})
 			}
