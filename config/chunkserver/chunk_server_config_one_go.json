@@ -1,0 +1,7 @@
+{
+    "PERSISTENT_HASHMAP_WAL_DIRECTORY" : "/Users/puneeth/Documents/software/side-projects/gfs-clone/chunkserver_meta",
+    "PORT" : 8099,
+    "DOMAIN": "localhost",
+    "GFS_SERVER_INFO_IPV4_ADDRESS" : "http://localhost:8000",
+    "DATA_DIRECTORY" : "/Users/puneeth/Documents/software/side-projects/gfs-clone/data_store/chunkserver_one"
+}
