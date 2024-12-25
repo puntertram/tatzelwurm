@@ -4,6 +4,7 @@ import json
 from urllib.parse import urljoin
 import os
 from functools import reduce
+import shutil
 CLIENT_CONFIG_FILE_PATH = sys.argv[1]
 client_config = json.load(open(CLIENT_CONFIG_FILE_PATH))
 
@@ -113,7 +114,7 @@ class CreateFileLogger:
     def clear_logs(self, chunk_id):
         self.close(chunk_id)
         chunk_id_directory_path = os.path.join(self.parent_directory, chunk_id)
-        os.removedirs(chunk_id_directory_path)
+        shutil.rmtree(chunk_id_directory_path)
         
 
     
@@ -176,9 +177,10 @@ def create_file(file_name, size, stream):
             write_chunk_is_successful = reduce(lambda x, y: x and y, write_chunkserver_status)
             if not write_chunk_is_successful:
                 print(f"FATAL, write_chunk() failed, please see above logs to see which chunk_id failed... create_file() for file_name={file_name} failed...")
+                return
+            else:
                 # TODO: Clear logs for this chunk_id
                 create_file_logger.clear_logs(chunk_id)
-                return
     
 def update_file(file_name, position, size, updated_stream):
     pass 
