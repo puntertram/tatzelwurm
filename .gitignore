@@ -1,2 +1,6 @@
 data_store/
 mainserver_meta/
+chunkserver_meta/
+client_meta/
+test/output
+venv/
