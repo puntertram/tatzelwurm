@@ -1,9 +1,7 @@
 {
-    "gfs_server_info": {
-        "ipv4_address": "http://localhost:8000"
-    },
-    "chunk_server_info": {
-        "data_directory": "/Users/puneeth/Documents/software/side-projects/gfs-clone/data_store/chunkserver_two",
-        "port": 8098
-    }
+    "PERSISTENT_HASHMAP_WAL_DIRECTORY" : "/Users/puneeth/Documents/software/side-projects/gfs-clone/chunkserver_meta/chunkserver_two",
+    "PORT" : 8098,
+    "DOMAIN": "localhost",
+    "GFS_SERVER_INFO_IPV4_ADDRESS" : "http://localhost:8000",
+    "DATA_DIRECTORY" : "/Users/puneeth/Documents/software/side-projects/gfs-clone/data_store/chunkserver_two"
 }
