@@ -9,59 +9,16 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
+	"tatzelwurm/model"
+	response_dto "tatzelwurm/model/api/response"
 	persistent_hashmap "tatzelwurm/utils"
 	"time"
 )
 
-type CHUNK_SERVER_CONFIG struct {
-	PERSISTENT_HASHMAP_WAL_DIRECTORY string `json:"PERSISTENT_HASHMAP_WAL_DIRECTORY"`
-	PORT                             int    `json:"PORT"`
-	DOMAIN                           string `json:"DOMAIN"`
-	GFS_SERVER_INFO_IPV4_ADDRESS     string `json:"GFS_SERVER_INFO_IPV4_ADDRESS"`
-	DATA_DIRECTORY                   string `json:"DATA_DIRECTORY"`
-}
+var chunkServerConfigFileJson model.CHUNK_SERVER_CONFIG
+var chunk_server_to_chunk_id_map *model.ChunkServerPersistentHashmap = nil
 
-type ChunkServerToChunkIdMapValue struct {
-	is_replicated bool
-	is_dirty      bool
-}
-type ChunkServerPersistentHashmap struct {
-	*persistent_hashmap.PersistentHashmap
-	Config CHUNK_SERVER_CONFIG
-}
-
-func (c *ChunkServerPersistentHashmap) Get(key string) (ChunkServerToChunkIdMapValue, bool) {
-	value, ok := c.PersistentHashmap.Get(key)
-	values := strings.Split(value, ",")
-	var return_value ChunkServerToChunkIdMapValue
-	// parse value into return_value
-	if ok {
-		is_replicated_value, err := strconv.ParseBool(values[0])
-		if err != nil {
-			return return_value, false
-		}
-		is_dirty_value, err := strconv.ParseBool(values[1])
-		if err != nil {
-			return return_value, false
-		}
-		return_value = ChunkServerToChunkIdMapValue{
-			is_replicated: is_replicated_value,
-			is_dirty:      is_dirty_value,
-		}
-	}
-	return return_value, ok
-}
-
-func (c *ChunkServerPersistentHashmap) Put(key string, value ChunkServerToChunkIdMapValue) bool {
-	value_as_string := fmt.Sprintf("%v, %v", value.is_replicated, value.is_replicated)
-	return c.PersistentHashmap.Put(key, value_as_string)
-}
-
-var chunkServerConfigFileJson CHUNK_SERVER_CONFIG
-var chunk_server_to_chunk_id_map *ChunkServerPersistentHashmap = nil
-
-func connect(chunkServerConfigFileJson CHUNK_SERVER_CONFIG) error {
+func connect(chunkServerConfigFileJson model.CHUNK_SERVER_CONFIG) error {
 	var error error
 	local_ip := fmt.Sprintf("http://%s:%d", chunkServerConfigFileJson.DOMAIN, chunkServerConfigFileJson.PORT)
 	heartbeat_request_url := fmt.Sprintf("%s/heartbeat", chunkServerConfigFileJson.GFS_SERVER_INFO_IPV4_ADDRESS)
@@ -99,11 +56,7 @@ func fileExists(filePath string) bool {
 }
 
 func processGetChunk(w http.ResponseWriter, r *http.Request) {
-	type GetChunkResponseModel struct {
-		Description  string `json:description`
-		ChunkContent string `json:chunk_content`
-	}
-	var response GetChunkResponseModel
+	var response response_dto.GetChunkResponseModel
 	if r.Method == http.MethodGet {
 		chunk_id := r.URL.Query().Get("chunk_id")
 		chunk_file_path := fmt.Sprintf("%s/%s", chunkServerConfigFileJson.DATA_DIRECTORY, chunk_id)
@@ -112,12 +65,12 @@ func processGetChunk(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				// fmt.Println("Error opening file at path ", chunkserver_config_file_path)
 				w.WriteHeader(http.StatusInternalServerError)
-				response = GetChunkResponseModel{
+				response = response_dto.GetChunkResponseModel{
 					Description:  fmt.Sprintf("Error opening file at path %s", chunk_file_path),
 					ChunkContent: "",
 				}
 			} else {
-				response = GetChunkResponseModel{
+				response = response_dto.GetChunkResponseModel{
 					Description:  "Fetched the chunk content successfully",
 					ChunkContent: string(chunk_file_data),
 				}
@@ -125,7 +78,7 @@ func processGetChunk(w http.ResponseWriter, r *http.Request) {
 
 		} else {
 			w.WriteHeader(http.StatusNotFound)
-			response = GetChunkResponseModel{
+			response = response_dto.GetChunkResponseModel{
 				Description:  "Cannot fetch Chunk content",
 				ChunkContent: "",
 			}
@@ -133,7 +86,7 @@ func processGetChunk(w http.ResponseWriter, r *http.Request) {
 
 	} else {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		response = GetChunkResponseModel{
+		response = response_dto.GetChunkResponseModel{
 			Description:  "Method not supported",
 			ChunkContent: "",
 		}
@@ -142,10 +95,7 @@ func processGetChunk(w http.ResponseWriter, r *http.Request) {
 }
 
 func processWriteChunk(w http.ResponseWriter, r *http.Request) {
-	type WriteChunkResponseModel struct {
-		Description string `json:"description"`
-	}
-	var response WriteChunkResponseModel
+	var response response_dto.WriteChunkResponseModel
 	if r.Method == http.MethodPost {
 		var request_body_json map[string]string
 		json.NewDecoder(r.Body).Decode(&request_body_json)
@@ -157,71 +107,75 @@ func processWriteChunk(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			print("[processWriteChunk] Encountered error while writing to file ", err.Error())
-			response = WriteChunkResponseModel{
+			response = response_dto.WriteChunkResponseModel{
 				Description: "Error Writing stream to file",
 			}
 		} else {
 			old_value, _ := chunk_server_to_chunk_id_map.Get(chunk_id)
-			chunk_server_to_chunk_id_map.Put(chunk_id, ChunkServerToChunkIdMapValue{
-				is_replicated: true,
-				is_dirty:      !old_value.is_replicated,
+			chunk_server_to_chunk_id_map.Put(chunk_id, model.ChunkServerToChunkIdMapValue{
+				Is_replicated: true,
+				Is_dirty:      !old_value.Is_replicated,
 			})
-			response = WriteChunkResponseModel{
+			response = response_dto.WriteChunkResponseModel{
 				Description: fmt.Sprintf("%s contents successfully written", chunk_id),
 			}
 		}
 	} else {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		response = WriteChunkResponseModel{
+		response = response_dto.WriteChunkResponseModel{
 			Description: "Method not supported",
 		}
 	}
 	json.NewEncoder(w).Encode(response)
 }
 
-func runServer(wg *sync.WaitGroup, chunkServerConfigFileJson CHUNK_SERVER_CONFIG) {
-	defer wg.Done()
+func runServer(chunkServerConfigFileJson model.CHUNK_SERVER_CONFIG) {
 	var portNumber = chunkServerConfigFileJson.PORT
 	if err := http.ListenAndServe("localhost:"+strconv.Itoa(portNumber), nil); err != nil {
 		fmt.Println("Could not start http server on port ", portNumber, err)
 	}
 }
-func syncWithMainServer(wg *sync.WaitGroup) {
-
-	ticker := time.NewTicker(5 * time.Second) // Run every 5 seconds
-	defer wg.Done()
-	defer ticker.Stop()
-
+func syncWithMainServer(ticker *time.Ticker) {
+	fmt.Printf("Syncing with MainServer...\n")
 	for {
 		select {
 		case <-ticker.C:
 			// We go through the chunk_server_to_chunk_id_map values and sync the values that are dirty
+			sync_with_mainserver_request_url := fmt.Sprintf("%s/syncFromChunkServer", chunkServerConfigFileJson.GFS_SERVER_INFO_IPV4_ADDRESS)
+			sync_with_mainserver_request_data := make([]map[string]string, 0)
 			for key, _ := range chunk_server_to_chunk_id_map.HashMap {
 				value, _ := chunk_server_to_chunk_id_map.Get(key)
-				if value.is_dirty {
-					fmt.Printf("[syncWithMainServer] relaying information about chunk_id %s to the mainserver about the value %v\n", key, value.is_replicated)
-
-					sync_with_mainserver_request_url := fmt.Sprintf("%s/syncFromChunkServer", chunkServerConfigFileJson.GFS_SERVER_INFO_IPV4_ADDRESS)
-					sync_with_mainserver_request_data := map[string]string{
+				if value.Is_dirty {
+					fmt.Printf("[syncWithMainServer] relaying information about chunk_id %s to the mainserver about the value %v\n", key, value.Is_replicated)
+					sync_with_mainserver_request_data = append(sync_with_mainserver_request_data, map[string]string{
 						"chunk_id":      key,
 						"is_replicated": "true",
-					}
-					sync_with_mainserver_request_json_data, _ := json.Marshal(sync_with_mainserver_request_data)
-					sync_with_mainserver_response, err := http.Post(sync_with_mainserver_request_url, "application/json", bytes.NewBuffer(sync_with_mainserver_request_json_data))
-					if err != nil {
-						fmt.Printf("[syncWithMainServer] error while syncing the value with the mainserver, more details %s\n", err.Error())
-					} else {
-						if sync_with_mainserver_response.StatusCode == http.StatusOK {
-							value.is_dirty = false
+					})
+				}
+			}
+			sync_with_mainserver_request_json_data, _ := json.Marshal(sync_with_mainserver_request_data)
+			sync_with_mainserver_response, err := http.Post(sync_with_mainserver_request_url, "application/json", bytes.NewBuffer(sync_with_mainserver_request_json_data))
+			if err != nil {
+				fmt.Printf("[syncWithMainServer] error while syncing the value with the mainserver, more details %s\n", err.Error())
+			} else {
+				if sync_with_mainserver_response.StatusCode == http.StatusOK {
+					var sync_with_mainserver_response_data []response_dto.SyncWithMainserverResponseModel
+					json.NewDecoder(sync_with_mainserver_response.Body).Decode(&sync_with_mainserver_response_data)
+					for idx := range sync_with_mainserver_response_data {
+						if sync_with_mainserver_response_data[idx].Status == model.ChunkSyncedSuccessfully {
+							value, _ := chunk_server_to_chunk_id_map.Get(sync_with_mainserver_response_data[idx].Chunk_id)
+							value.Is_dirty = false
+							chunk_server_to_chunk_id_map.Put(strings.TrimSpace(sync_with_mainserver_response_data[idx].Chunk_id), value)
+						} else if sync_with_mainserver_response_data[idx].Status == model.ChunkSyncFailed {
 							// We are not bothered about the success of the Put function below,
 							// As if the below call fails, then this key,value pair will be picked up again
 							// and will be synced to the mainserver in the next run. No harmful changes
 							// will occur except some additional http requests to the mainserver
-							chunk_server_to_chunk_id_map.Put(key, value)
-						} else {
-							fmt.Printf("[syncWithMainServer] unexpected sync_with_mainserver_request status code %d\n", sync_with_mainserver_response.StatusCode)
 						}
 					}
+
+				} else {
+					fmt.Printf("[syncWithMainServer] unexpected sync_with_mainserver_request status code %d\n", sync_with_mainserver_response.StatusCode)
 				}
 			}
 
@@ -243,22 +197,23 @@ func Run(chunkserver_config_file_path string) {
 	if err != nil {
 		print("Could not connect to the mainserver")
 	}
-	chunk_server_to_chunk_id_map = &ChunkServerPersistentHashmap{
+	chunk_server_to_chunk_id_map = &model.ChunkServerPersistentHashmap{
 		Config: chunkServerConfigFileJson,
 		PersistentHashmap: &persistent_hashmap.PersistentHashmap{
 			AuditLogFilePath: filepath.Join(chunkServerConfigFileJson.PERSISTENT_HASHMAP_WAL_DIRECTORY, "chunk_server_map_audit.log"),
 			Namespace:        "chunk_server_to_chunk_id_map",
 		},
 	}
+	chunk_server_to_chunk_id_map.PersistentHashmap.Initialize()
 
 	http.HandleFunc("/", processBase)
 	http.HandleFunc("/heartbeat", processHeartBeat)
 	http.HandleFunc("/get_chunk", processGetChunk)
 	http.HandleFunc("/write_chunk", processWriteChunk)
 
-	var wg sync.WaitGroup
-	go runServer(&wg, chunkServerConfigFileJson)
-	go syncWithMainServer(&wg)
+	ticker := time.NewTicker(5 * time.Second) // Run every 5 seconds
 
-	wg.Wait()
+	go runServer(chunkServerConfigFileJson)
+	go syncWithMainServer(ticker)
+	select {}
 }

@@ -8,104 +8,19 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
+	"tatzelwurm/model"
+	request_dto "tatzelwurm/model/api/request"
+	response_dto "tatzelwurm/model/api/response"
 	persistent_hashmap "tatzelwurm/utils"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-type MAIN_SERVER_CONFIG struct {
-	PERSISTENT_HASHMAP_WAL_DIRECTORY string `json:"PERSISTENT_HASHMAP_WAL_DIRECTORY"`
-	REPLICATION_FACTOR               int    `json:"REPLICATION_FACTOR"`
-	PORT                             int    `json:"PORT"`
-	GFS_CHUNK_SIZE                   int    `json:"GFS_CHUNK_SIZE"`
-}
-
-type PROCESS_HEARTBEAT_POST_REQUEST_BODY struct {
-	IP_ADDRESS string `json:"IP_ADDRESS"`
-}
-
-type MainServerPersistentHashmap struct {
-	Config MAIN_SERVER_CONFIG
-	*persistent_hashmap.PersistentHashmap
-}
-
-type ChunkIdToChunkServerPersistentHashmap struct {
-	*MainServerPersistentHashmap
-}
-type ChunkIdToChunkServerPersistentHashmapValue struct {
-	chunk_id      string
-	is_replicated bool
-}
-
-func (c *ChunkIdToChunkServerPersistentHashmap) Get(key string) (ChunkIdToChunkServerPersistentHashmapValue, bool) {
-	value, ok := c.PersistentHashmap.Get(key)
-	values := strings.Split(value, ",")
-	var return_value ChunkIdToChunkServerPersistentHashmapValue
-	if ok {
-		is_replicated_value, err := strconv.ParseBool(values[1])
-		if err != nil {
-			return return_value, false
-		}
-		return_value = ChunkIdToChunkServerPersistentHashmapValue{
-			chunk_id:      values[0],
-			is_replicated: is_replicated_value,
-		}
-	}
-	return return_value, ok
-}
-
-func (c *ChunkIdToChunkServerPersistentHashmap) Put(key string, value ChunkIdToChunkServerPersistentHashmapValue) bool {
-	value_string := fmt.Sprintf("%s, %v", value.chunk_id, value.is_replicated)
-	return c.PersistentHashmap.Put(key, value_string)
-}
-
-type ChunkServerPersistentHashmap struct {
-	*MainServerPersistentHashmap
-}
-
-type ChunkServerPersistentHashmapValue struct {
-	ipv4_address string
-}
-
-func (c *ChunkServerPersistentHashmap) Get(key string) (ChunkServerPersistentHashmapValue, bool) {
-	value, ok := c.PersistentHashmap.Get(key)
-	return_value := ChunkServerPersistentHashmapValue{
-		ipv4_address: value,
-	}
-	return return_value, ok
-}
-func (c *ChunkServerPersistentHashmap) Put(key string, value ChunkServerPersistentHashmapValue) bool {
-	value_string := fmt.Sprintf("%s", value.ipv4_address)
-	return c.PersistentHashmap.Put(key, value_string)
-}
-
-type FileNameToChunkIdPersistentHashmap struct {
-	*MainServerPersistentHashmap
-}
-
-type FileNameToChunkIdPersistentHashmapValue struct {
-	chunk_id string
-}
-
-func (f *FileNameToChunkIdPersistentHashmap) Get(key string) (FileNameToChunkIdPersistentHashmapValue, bool) {
-	value, ok := f.PersistentHashmap.Get(key)
-	return_value := FileNameToChunkIdPersistentHashmapValue{
-		chunk_id: value,
-	}
-	return return_value, ok
-}
-
-func (f *FileNameToChunkIdPersistentHashmap) Put(key string, value FileNameToChunkIdPersistentHashmapValue) bool {
-	value_string := fmt.Sprintf("%s", value.chunk_id)
-	return f.PersistentHashmap.Put(key, value_string)
-}
-
-var mainServerConfigFileJson MAIN_SERVER_CONFIG
-var chunk_id_to_chunk_server_maps map[string]ChunkIdToChunkServerPersistentHashmap = make(map[string]ChunkIdToChunkServerPersistentHashmap)
-var chunk_server_map *ChunkServerPersistentHashmap = nil
-var file_name_to_chunk_id_map *FileNameToChunkIdPersistentHashmap = nil
+var mainServerConfigFileJson model.MAIN_SERVER_CONFIG
+var chunk_id_to_chunk_server_maps map[string]model.ChunkIdToChunkServerPersistentHashmap = make(map[string]model.ChunkIdToChunkServerPersistentHashmap)
+var chunk_server_map *model.ChunkServerInformationPersistentHashmap = nil
+var file_name_to_chunk_id_map *model.FileNameToChunkIdPersistentHashmap = nil
 
 func processBase(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("This is the gfs mainserver..."))
@@ -122,7 +37,7 @@ func processGetChunkId(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusConflict)
 			response = map[string]string{
 				"description": "chunk_id found successfully",
-				"chunk_id":    file_name_to_chunk_id_map_value.chunk_id,
+				"chunk_id":    file_name_to_chunk_id_map_value.Chunk_id,
 			}
 		} else {
 			w.WriteHeader(http.StatusNotFound)
@@ -144,13 +59,13 @@ func processGetChunkId(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusConflict)
 			response = map[string]string{
 				"description": "chunk_id already exists!",
-				"chunk_id":    file_name_to_chunk_id_map_value.chunk_id,
+				"chunk_id":    file_name_to_chunk_id_map_value.Chunk_id,
 			}
 		} else {
 
 			chunk_id := uuid.New().String()
-			file_name_to_chunk_id_map.Put(fmt.Sprintf("%s, %d", file_name, chunk_offset), FileNameToChunkIdPersistentHashmapValue{
-				chunk_id: chunk_id,
+			file_name_to_chunk_id_map.Put(fmt.Sprintf("%s, %d", file_name, chunk_offset), model.FileNameToChunkIdPersistentHashmapValue{
+				Chunk_id: chunk_id,
 			})
 			response = map[string]string{
 				"description": "chunk_id not found in store! Returning a fresh one...",
@@ -165,7 +80,42 @@ func processGetChunkId(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func getRandomKeys(m *MainServerPersistentHashmap, n int) ([]string, string) {
+func processSyncFromChunkServer(w http.ResponseWriter, r *http.Request) {
+	response := make([]response_dto.SyncFromChunkServerResponseModel, 0)
+	if r.Method == http.MethodPost {
+		var sync_from_chunk_server_request_body request_dto.SyncFromChunkServerRequestBody
+		json.NewDecoder(r.Body).Decode(&sync_from_chunk_server_request_body)
+		chunk_server_map_value, _ := chunk_server_map.Get(sync_from_chunk_server_request_body.Ipv4_address)
+		// TODO: Handle the case where we cannot find the chunkserver with the given ip
+		for idx := range sync_from_chunk_server_request_body.Chunk_list {
+			updated_status := model.ChunkSyncFailed
+			chunk_to_be_synced := sync_from_chunk_server_request_body.Chunk_list[idx]
+			for _, chunk_id_to_chunk_server_map := range chunk_id_to_chunk_server_maps {
+				chunk_id_to_chunk_server_map_value, ok := chunk_id_to_chunk_server_map.Get(chunk_to_be_synced.Chunk_id)
+				if ok {
+					if chunk_id_to_chunk_server_map_value.Chunk_server_session_id == chunk_server_map_value.Ipv4_address {
+						chunk_id_to_chunk_server_map.Put(chunk_to_be_synced.Chunk_id, model.ChunkIdToChunkServerPersistentHashmapValue{
+							Chunk_server_session_id: chunk_id_to_chunk_server_map_value.Chunk_server_session_id,
+							Is_replicated:           chunk_to_be_synced.Is_replicated,
+						})
+						updated_status = model.ChunkSyncedSuccessfully
+						break
+					}
+				}
+			}
+			response = append(response, response_dto.SyncFromChunkServerResponseModel{
+				Chunk_id: chunk_to_be_synced.Chunk_id,
+				Status:   updated_status,
+			})
+		}
+
+	} else {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+func getRandomKeys(m *model.MainServerPersistentHashmap, n int) ([]string, string) {
 	if len(m.HashMap) < n {
 		return nil, "The amount to sample is more than the number of keys"
 	}
@@ -196,15 +146,13 @@ func processGetChunkServers(w http.ResponseWriter, r *http.Request) {
 		chunk_servers := make([]GetChunkServerModel, 0)
 		for _, chunk_id_to_chunk_server_map := range chunk_id_to_chunk_server_maps {
 			chunk_id_to_chunk_server_map_value, ok := chunk_id_to_chunk_server_map.Get(chunk_id)
-			chunk_id_to_chunk_server_map_values := strings.Split(chunk_id_to_chunk_server_map_value.chunk_id, ",")
-			chunkserver_session_id := chunk_id_to_chunk_server_map_values[0]
 			// chunkid_is_replicated := chunk_id_to_chunk_server_map_values[1]
 			if ok {
-				chunk_server_map_value, _ := chunk_server_map.Get(chunkserver_session_id)
+				chunk_server_map_value, _ := chunk_server_map.Get(chunk_id_to_chunk_server_map_value.Chunk_server_session_id)
 				// chunkserver_is_replicated := chunkserver_map_values[1]
 				chunk_servers = append(chunk_servers, GetChunkServerModel{
-					Session_id:   chunkserver_session_id,
-					Ipv4_address: chunk_server_map_value.ipv4_address,
+					Session_id:   chunk_id_to_chunk_server_map_value.Chunk_server_session_id,
+					Ipv4_address: chunk_server_map_value.Ipv4_address,
 				})
 			}
 		}
@@ -235,13 +183,13 @@ func processGetChunkServers(w http.ResponseWriter, r *http.Request) {
 				chunk_server_map_value, _ := chunk_server_map.Get(chunk_server_key)
 				map_name := fmt.Sprintf("persistent_hashmap_%d", idx)
 				chunk_id_to_chunk_server_map := chunk_id_to_chunk_server_maps[map_name]
-				chunk_id_to_chunk_server_map.Put(chunk_id, ChunkIdToChunkServerPersistentHashmapValue{
-					chunk_id:      chunk_server_key,
-					is_replicated: false,
+				chunk_id_to_chunk_server_map.Put(chunk_id, model.ChunkIdToChunkServerPersistentHashmapValue{
+					Chunk_server_session_id: chunk_server_key,
+					Is_replicated:           false,
 				})
 				chunk_servers = append(chunk_servers, GetChunkServerModel{
 					Session_id:   chunk_server_key,
-					Ipv4_address: chunk_server_map_value.ipv4_address,
+					Ipv4_address: chunk_server_map_value.Ipv4_address,
 				})
 			}
 			response = GetChunkServersResponse{
@@ -269,15 +217,15 @@ func processHeartBeat(w http.ResponseWriter, r *http.Request) {
 			"chunk_size": strconv.Itoa(mainServerConfigFileJson.GFS_CHUNK_SIZE),
 		}
 	} else if r.Method == http.MethodPost {
-		var request_body *PROCESS_HEARTBEAT_POST_REQUEST_BODY
+		var request_body *model.PROCESS_HEARTBEAT_POST_REQUEST_BODY
 		json.NewDecoder(r.Body).Decode(&request_body)
 		fmt.Printf("[heartbeat_request] Recieved request with ip_address->%s\n", request_body.IP_ADDRESS)
 		chunk_server_session_id, entry_found := chunk_server_map.Check_value(request_body.IP_ADDRESS)
 		if !entry_found {
 			// this chunk server is not registered with the mainserver
 			chunk_server_session_id := uuid.New().String()
-			chunk_server_map.Put(chunk_server_session_id, ChunkServerPersistentHashmapValue{
-				ipv4_address: request_body.IP_ADDRESS,
+			chunk_server_map.Put(chunk_server_session_id, model.ChunkServerPersistentInformationHashmapValue{
+				Ipv4_address: request_body.IP_ADDRESS,
 			})
 			response = map[string]string{
 				"description": fmt.Sprintf("[heartbeat_request] This chunkserver is successfully registered with the mainserver with session id %s", chunk_server_session_id),
@@ -310,8 +258,8 @@ func Run(mainserver_config_file_path string) {
 	// var chunk_id_to_chunk_server_map
 	for i := 0; i < mainServerConfigFileJson.REPLICATION_FACTOR; i++ {
 		map_name := fmt.Sprintf("persistent_hashmap_%d", i)
-		chunk_id_to_chunk_server_maps[map_name] = ChunkIdToChunkServerPersistentHashmap{
-			MainServerPersistentHashmap: &MainServerPersistentHashmap{
+		chunk_id_to_chunk_server_maps[map_name] = model.ChunkIdToChunkServerPersistentHashmap{
+			MainServerPersistentHashmap: &model.MainServerPersistentHashmap{
 				Config: mainServerConfigFileJson,
 				PersistentHashmap: &persistent_hashmap.PersistentHashmap{
 					AuditLogFilePath: filepath.Join(mainServerConfigFileJson.PERSISTENT_HASHMAP_WAL_DIRECTORY, fmt.Sprintf("%s_audit.log", map_name)),
@@ -322,8 +270,8 @@ func Run(mainserver_config_file_path string) {
 		chunk_id_to_chunk_server_maps[map_name].PersistentHashmap.Initialize()
 	}
 
-	chunk_server_map = &ChunkServerPersistentHashmap{
-		MainServerPersistentHashmap: &MainServerPersistentHashmap{
+	chunk_server_map = &model.ChunkServerInformationPersistentHashmap{
+		MainServerPersistentHashmap: &model.MainServerPersistentHashmap{
 			Config: mainServerConfigFileJson,
 			PersistentHashmap: &persistent_hashmap.PersistentHashmap{
 				AuditLogFilePath: filepath.Join(mainServerConfigFileJson.PERSISTENT_HASHMAP_WAL_DIRECTORY, "chunk_server_map_audit.log"),
@@ -332,8 +280,8 @@ func Run(mainserver_config_file_path string) {
 		},
 	}
 	chunk_server_map.PersistentHashmap.Initialize()
-	file_name_to_chunk_id_map = &FileNameToChunkIdPersistentHashmap{
-		MainServerPersistentHashmap: &MainServerPersistentHashmap{
+	file_name_to_chunk_id_map = &model.FileNameToChunkIdPersistentHashmap{
+		MainServerPersistentHashmap: &model.MainServerPersistentHashmap{
 			Config: mainServerConfigFileJson,
 			PersistentHashmap: &persistent_hashmap.PersistentHashmap{
 				AuditLogFilePath: filepath.Join(mainServerConfigFileJson.PERSISTENT_HASHMAP_WAL_DIRECTORY, "file_name_to_chunk_id_map_audit.log"),
@@ -347,6 +295,7 @@ func Run(mainserver_config_file_path string) {
 	http.HandleFunc("/heartbeat", processHeartBeat)
 	http.HandleFunc("/get_chunk_servers", processGetChunkServers)
 	http.HandleFunc("/get_chunk_id", processGetChunkId)
+	http.HandleFunc("/syncFromChunkServer", processSyncFromChunkServer)
 
 	var portNumber = mainServerConfigFileJson.PORT
 	if err := http.ListenAndServe("localhost:"+strconv.Itoa(portNumber), nil); err != nil {

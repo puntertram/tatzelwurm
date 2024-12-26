@@ -1,0 +1,3 @@
+package response_dto
+
+type SyncFromChunkServerResponseModel = SyncWithMainserverResponseModel

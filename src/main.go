@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"tatzelwurm/chunkserver"
-	"tatzelwurm/mainserver"
+	"tatzelwurm/service/chunkserver"
+	"tatzelwurm/service/mainserver"
 )
 
 func main() {
