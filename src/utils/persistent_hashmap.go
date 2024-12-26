@@ -14,7 +14,7 @@ type PersistentHashmap struct {
 	AuditFileObject  *os.File
 	Namespace        string
 	HashMap          map[string]string
-	mu               sync.Mutex
+	mu               sync.RWMutex
 }
 
 func (p *PersistentHashmap) Initialize() bool {
