@@ -1,3 +1,4 @@
+cd $1
 mkdir -p data_store
 mkdir -p data_store/chunkserver_one
 mkdir -p data_store/chunkserver_two
