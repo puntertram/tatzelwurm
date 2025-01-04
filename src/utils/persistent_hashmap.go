@@ -14,7 +14,7 @@ type PersistentHashmap struct {
 	AuditFileObject  *os.File
 	Namespace        string
 	HashMap          map[string]string
-	mu               sync.RWMutex
+	Mu               sync.RWMutex
 }
 
 func (p *PersistentHashmap) Initialize() bool {
@@ -57,7 +57,7 @@ func (p *PersistentHashmap) Get(key string) (string, bool) {
 }
 
 func (p *PersistentHashmap) Put(key string, value string) bool {
-	p.mu.Lock()
+	p.Mu.Lock()
 	result := false
 	p.HashMap[key] = value
 	if p.AuditFileObject == nil {
@@ -66,7 +66,7 @@ func (p *PersistentHashmap) Put(key string, value string) bool {
 		p.AuditFileObject.Write([]byte(fmt.Sprintf("add|%s|%s\n", key, value)))
 		p.AuditFileObject.Sync()
 	}
-	p.mu.Unlock()
+	p.Mu.Unlock()
 	return result
 }
 func (p *PersistentHashmap) Check_value(value string) (string, bool) {
