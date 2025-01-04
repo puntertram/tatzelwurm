@@ -18,9 +18,13 @@ def connect():
 
 def chunk_server_is_live(chunk_server):
     print(chunk_server)
-    if requests.get(urljoin(chunk_server["ipv4_address"], "heartbeat")).status_code == 200:
-        return True 
-    else:
+    try:
+        if requests.get(urljoin(chunk_server["ipv4_address"], "heartbeat")).status_code == 200:
+            return True 
+        else:
+            return False
+    except Exception as ce:
+        print("Unable to connect to chunkserver", chunk_server, "more info", ce)
         return False
 
 def read_file(file_name, position, size):
@@ -61,15 +65,18 @@ def read_file(file_name, position, size):
                     print("""Could not connect with any of the chunk_servers...\nHere is a list of the chunk_servers...""")
                     print(chunk_servers)
                 else:
-                    chunk_request = requests.get(urljoin(active_chunk_server["ipv4_address"], "get_chunk"), params={"chunk_id": chunk_id})
-                    if chunk_request.status_code == 200:
-                        print(f"[{chunk_id}]get_chunk request is successful")
-                        get_chunk_is_successful = True 
-                        # print(chunk_request.json())
-                        data[request_id] = chunk_request.json()["ChunkContent"]
-                        break
-                    else:
-                        print(f"[{chunk_id}]The get_chunk request failed with status code {chunk_request.status_code}")
+                    try:
+                        chunk_request = requests.get(urljoin(active_chunk_server["ipv4_address"], "get_chunk"), params={"chunk_id": chunk_id})
+                        if chunk_request.status_code == 200:
+                            print(f"[{chunk_id}]get_chunk request is successful")
+                            get_chunk_is_successful = True 
+                            # print(chunk_request.json())
+                            data[request_id] = chunk_request.json()["ChunkContent"]
+                            break
+                        else:
+                            print(f"[{chunk_id}]The get_chunk request failed with status code {chunk_request.status_code}")
+                    except Exception as e:
+                        pass
                 number_of_retries += 1
             if not get_chunk_is_successful:
                 print(f"FATAL, get_chunk() failed, please see above logs to see which chunk_id failed... read_file() for file_name={file_name} failed...")
@@ -187,5 +194,10 @@ def update_file(file_name, position, size, updated_stream):
 
 connect()
 stream = "Hello World blah-blah" * 1000000
-create_file(f"blah-blah-{sys.argv[2]}.txt", len(stream), stream)
-# read_file(f"blah-blah-{sys.argv[2]}.txt", 7, 200)
+# create_file(f"blah-blah-{sys.argv[2]}.txt", len(stream), stream)
+import time
+start_time = time.perf_counter()
+for i in range(1000):
+    read_file(f"blah-blah-{sys.argv[2]}.txt", 7, 10 * 1000000)
+end_time = time.perf_counter()
+print(f"Time elapsed: {end_time - start_time} s")
