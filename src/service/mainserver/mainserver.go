@@ -85,28 +85,32 @@ func processSyncFromChunkServer(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		var sync_from_chunk_server_request_body request_dto.SyncFromChunkServerRequestBody
 		json.NewDecoder(r.Body).Decode(&sync_from_chunk_server_request_body)
-		chunk_server_map_value, _ := chunk_server_map.Get(sync_from_chunk_server_request_body.Ipv4_address)
+		chunk_server_session_id, ok := chunk_server_map.Check_value(sync_from_chunk_server_request_body.Ipv4_address)
 		// TODO: Handle the case where we cannot find the chunkserver with the given ip
-		for idx := range sync_from_chunk_server_request_body.Chunk_list {
-			updated_status := model.ChunkSyncFailed
-			chunk_to_be_synced := sync_from_chunk_server_request_body.Chunk_list[idx]
-			for _, chunk_id_to_chunk_server_map := range chunk_id_to_chunk_server_maps {
-				chunk_id_to_chunk_server_map_value, ok := chunk_id_to_chunk_server_map.Get(chunk_to_be_synced.Chunk_id)
-				if ok {
-					if chunk_id_to_chunk_server_map_value.Chunk_server_session_id == chunk_server_map_value.Ipv4_address {
-						chunk_id_to_chunk_server_map.Put(chunk_to_be_synced.Chunk_id, model.ChunkIdToChunkServerPersistentHashmapValue{
-							Chunk_server_session_id: chunk_id_to_chunk_server_map_value.Chunk_server_session_id,
-							Is_replicated:           chunk_to_be_synced.Is_replicated,
-						})
-						updated_status = model.ChunkSyncedSuccessfully
-						break
+		if ok {
+			for idx := range sync_from_chunk_server_request_body.Chunk_list {
+				updated_status := model.ChunkSyncFailed
+				chunk_to_be_synced := sync_from_chunk_server_request_body.Chunk_list[idx]
+				for _, chunk_id_to_chunk_server_map := range chunk_id_to_chunk_server_maps {
+					chunk_id_to_chunk_server_map_value, ok := chunk_id_to_chunk_server_map.Get(chunk_to_be_synced.Chunk_id)
+					if ok {
+						if chunk_id_to_chunk_server_map_value.Chunk_server_session_id == chunk_server_session_id {
+							chunk_id_to_chunk_server_map.Put(chunk_to_be_synced.Chunk_id, model.ChunkIdToChunkServerPersistentHashmapValue{
+								Chunk_server_session_id: chunk_id_to_chunk_server_map_value.Chunk_server_session_id,
+								Is_replicated:           chunk_to_be_synced.Is_replicated,
+							})
+							updated_status = model.ChunkSyncedSuccessfully
+							break
+						}
 					}
 				}
+				response = append(response, response_dto.SyncFromChunkServerResponseModel{
+					Chunk_id: chunk_to_be_synced.Chunk_id,
+					Status:   updated_status,
+				})
 			}
-			response = append(response, response_dto.SyncFromChunkServerResponseModel{
-				Chunk_id: chunk_to_be_synced.Chunk_id,
-				Status:   updated_status,
-			})
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
 		}
 
 	} else {
@@ -116,6 +120,7 @@ func processSyncFromChunkServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func getRandomKeys(m *model.MainServerPersistentHashmap, n int) ([]string, string) {
+	m.PersistentHashmap.Mu.RLock()
 	if len(m.HashMap) < n {
 		return nil, "The amount to sample is more than the number of keys"
 	}
@@ -127,6 +132,7 @@ func getRandomKeys(m *model.MainServerPersistentHashmap, n int) ([]string, strin
 	rand.Shuffle(len(m.HashMap), func(i int, j int) {
 		keys[i], keys[j] = keys[j], keys[i]
 	})
+	m.PersistentHashmap.Mu.RUnlock()
 	return keys[:n], ""
 }
 

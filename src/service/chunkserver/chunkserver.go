@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"tatzelwurm/model"
+	request_dto "tatzelwurm/model/api/request"
 	response_dto "tatzelwurm/model/api/response"
 	persistent_hashmap "tatzelwurm/utils"
 	"time"
@@ -136,23 +137,28 @@ func runServer(chunkServerConfigFileJson model.CHUNK_SERVER_CONFIG) {
 	}
 }
 func syncWithMainServer(ticker *time.Ticker) {
-	fmt.Printf("Syncing with MainServer...\n")
 	for {
 		select {
 		case <-ticker.C:
 			// We go through the chunk_server_to_chunk_id_map values and sync the values that are dirty
+			fmt.Printf("Syncing with MainServer...\n")
 			sync_with_mainserver_request_url := fmt.Sprintf("%s/syncFromChunkServer", chunkServerConfigFileJson.GFS_SERVER_INFO_IPV4_ADDRESS)
-			sync_with_mainserver_request_data := make([]map[string]string, 0)
+			sync_with_mainserver_request_data := request_dto.SyncWithMainserverRequestModel{
+				Chunk_list:   make([]request_dto.SyncWithMainserverRequestChunkListModel, 0),
+				Ipv4_address: fmt.Sprintf("http://%s:%d", chunkServerConfigFileJson.DOMAIN, chunkServerConfigFileJson.PORT),
+			}
+			chunk_server_to_chunk_id_map.PersistentHashmap.Mu.RLock()
 			for key, _ := range chunk_server_to_chunk_id_map.HashMap {
 				value, _ := chunk_server_to_chunk_id_map.Get(key)
 				if value.Is_dirty {
 					fmt.Printf("[syncWithMainServer] relaying information about chunk_id %s to the mainserver about the value %v\n", key, value.Is_replicated)
-					sync_with_mainserver_request_data = append(sync_with_mainserver_request_data, map[string]string{
-						"chunk_id":      key,
-						"is_replicated": "true",
+					sync_with_mainserver_request_data.Chunk_list = append(sync_with_mainserver_request_data.Chunk_list, request_dto.SyncWithMainserverRequestChunkListModel{
+						Chunk_id:      key,
+						Is_replicated: true,
 					})
 				}
 			}
+			chunk_server_to_chunk_id_map.PersistentHashmap.Mu.RUnlock()
 			sync_with_mainserver_request_json_data, _ := json.Marshal(sync_with_mainserver_request_data)
 			sync_with_mainserver_response, err := http.Post(sync_with_mainserver_request_url, "application/json", bytes.NewBuffer(sync_with_mainserver_request_json_data))
 			if err != nil {
