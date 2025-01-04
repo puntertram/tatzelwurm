@@ -47,6 +47,6 @@ func (c *ChunkServerPersistentHashmap) Get(key string) (ChunkServerToChunkIdMapV
 }
 
 func (c *ChunkServerPersistentHashmap) Put(key string, value ChunkServerToChunkIdMapValue) bool {
-	value_as_string := fmt.Sprintf("%v, %v", value.Is_replicated, value.Is_replicated)
+	value_as_string := fmt.Sprintf("%v, %v", value.Is_replicated, value.Is_dirty)
 	return c.PersistentHashmap.Put(key, value_as_string)
 }
