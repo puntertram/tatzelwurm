@@ -1,7 +1,7 @@
 {
-    "PERSISTENT_HASHMAP_WAL_DIRECTORY" : "/Users/puneeth/Documents/software/side-projects/gfs-clone/chunkserver_meta/chunkserver_three",
+    "PERSISTENT_HASHMAP_WAL_DIRECTORY" : "/home/puneeth/Documents/projects/tatzelwurm/chunkserver_meta/chunkserver_three",
     "PORT" : 8097,
     "DOMAIN": "localhost",
     "GFS_SERVER_INFO_IPV4_ADDRESS" : "http://localhost:8000",
-    "DATA_DIRECTORY" : "/Users/puneeth/Documents/software/side-projects/gfs-clone/data_store/chunkserver_three"
+    "DATA_DIRECTORY" : "/home/puneeth/Documents/projects/tatzelwurm/data_store/chunkserver_three"
 }

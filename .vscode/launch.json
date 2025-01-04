@@ -26,7 +26,7 @@
                 "--run_mode",
                 "chunkserver",
                 "--config_path",
-                "/Users/puneeth/Documents/software/side-projects/gfs-clone/config/chunkserver/chunk_server_config_one.json"
+                "/home/puneeth/Documents/projects/tatzelwurm/config/chunkserver/chunk_server_config_one.json"
             ]
         },
         {
@@ -36,7 +36,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "/Users/puneeth/Documents/software/side-projects/gfs-clone/config/client/client_config.json",
+                "/home/puneeth/Documents/projects/tatzelwurm/config/client/client_config.json",
                 "21"
             ]
         }

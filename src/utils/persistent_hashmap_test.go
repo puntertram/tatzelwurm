@@ -33,7 +33,7 @@ func TestPersistentHashmap_Put(t *testing.T) {
 		{
 			name: "",
 			fields: fields{
-				AuditLogFilePath: "/Users/puneeth/Documents/software/side-projects/gfs-clone/mainserver_meta/persistent_hashmap_1_audit.log",
+				AuditLogFilePath: "/home/puneeth/Documents/projects/tatzelwurm/mainserver_meta/persistent_hashmap_1_audit.log",
 				Namespace:        "persistent_hashmap_1",
 			},
 			args: args{

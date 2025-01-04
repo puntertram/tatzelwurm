@@ -3,5 +3,5 @@
         "ipv4_address": "http://127.0.0.1:8000"
     },
     "GET_CHUNK_NUMBER_OF_RETRIES": 3,
-    "LOG_DIRECTORY": "/Users/puneeth/Documents/software/side-projects/gfs-clone/client_meta"
+    "LOG_DIRECTORY": "/home/puneeth/Documents/projects/tatzelwurm/client_meta"
 }
